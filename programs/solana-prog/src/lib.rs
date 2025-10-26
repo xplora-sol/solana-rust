@@ -54,6 +54,44 @@ pub mod xplora_quests {
     ) -> Result<()> {
         instructions::delete_quest::delete_quest(ctx, quest_index)
     }
+
+    /// Initialize a user profile
+    pub fn initialize_user_profile(
+        ctx: Context<InitializeUserProfile>,
+        username: String,
+    ) -> Result<()> {
+        instructions::initialize_profile::initialize_user_profile(ctx, username)
+    }
+
+    /// Submit a quest completion with IPFS photo hash
+    pub fn submit_quest_completion(
+        ctx: Context<SubmitQuestCompletion>,
+        location: String,
+        quest_index: u8,
+        ipfs_hash: String,
+        description: String,
+    ) -> Result<()> {
+        instructions::submit_quest::submit_quest_completion(
+            ctx,
+            location,
+            quest_index,
+            ipfs_hash,
+            description,
+        )
+    }
+
+    /// Approve a quest submission and distribute rewards
+    pub fn approve_submission(ctx: Context<ApproveSubmission>) -> Result<()> {
+        instructions::approve_submission::approve_submission(ctx)
+    }
+
+    /// Reject a quest submission
+    pub fn reject_submission(
+        ctx: Context<RejectSubmission>,
+        reason: String,
+    ) -> Result<()> {
+        instructions::reject_submission::reject_submission(ctx, reason)
+    }
 }
 
 // Context structs need to be at crate root for Anchor to find them
@@ -158,4 +196,128 @@ pub struct DeleteQuest<'info> {
     
     #[account(mut)]
     pub authority: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct InitializeUserProfile<'info> {
+    #[account(
+        init,
+        payer = user,
+        space = UserProfile::space(),
+        seeds = [b"user_profile", user.key().as_ref()],
+        bump
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+    
+    #[account(mut)]
+    pub user: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+#[instruction(location: String, quest_index: u8)]
+pub struct SubmitQuestCompletion<'info> {
+    #[account(
+        init,
+        payer = user,
+        space = QuestSubmission::space(),
+        seeds = [
+            b"submission",
+            user.key().as_ref(),
+            location.as_bytes(),
+            &[quest_index]
+        ],
+        bump
+    )]
+    pub submission: Account<'info, QuestSubmission>,
+    
+    #[account(
+        seeds = [b"location_quests", location.as_bytes()],
+        bump
+    )]
+    pub location_quests: Account<'info, LocationQuests>,
+    
+    #[account(
+        mut,
+        seeds = [b"user_profile", user.key().as_ref()],
+        bump
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+    
+    #[account(mut)]
+    pub user: Signer<'info>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ApproveSubmission<'info> {
+    #[account(
+        mut,
+        seeds = [
+            b"submission",
+            submission.user.as_ref(),
+            submission.location.as_bytes(),
+            &[submission.quest_index]
+        ],
+        bump = submission.bump
+    )]
+    pub submission: Account<'info, QuestSubmission>,
+    
+    #[account(
+        seeds = [b"location_quests", submission.location.as_bytes()],
+        bump
+    )]
+    pub location_quests: Account<'info, LocationQuests>,
+    
+    #[account(
+        mut,
+        seeds = [b"user_profile", submission.user.as_ref()],
+        bump
+    )]
+    pub user_profile: Account<'info, UserProfile>,
+    
+    #[account(
+        mut,
+        seeds = [b"quest_registry"],
+        bump,
+        has_one = authority @ XploraError::Unauthorized
+    )]
+    pub registry: Account<'info, QuestRegistry>,
+    
+    #[account(mut)]
+    pub validator: Signer<'info>,
+    
+    /// CHECK: This is the authority from registry
+    pub authority: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct RejectSubmission<'info> {
+    #[account(
+        mut,
+        seeds = [
+            b"submission",
+            submission.user.as_ref(),
+            submission.location.as_bytes(),
+            &[submission.quest_index]
+        ],
+        bump = submission.bump
+    )]
+    pub submission: Account<'info, QuestSubmission>,
+    
+    #[account(
+        mut,
+        seeds = [b"quest_registry"],
+        bump,
+        has_one = authority @ XploraError::Unauthorized
+    )]
+    pub registry: Account<'info, QuestRegistry>,
+    
+    #[account(mut)]
+    pub validator: Signer<'info>,
+    
+    /// CHECK: This is the authority from registry
+    pub authority: AccountInfo<'info>,
 }

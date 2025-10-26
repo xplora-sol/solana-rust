@@ -3,3 +3,7 @@ pub mod create_location;
 pub mod add_quest;
 pub mod update_quest;
 pub mod delete_quest;
+pub mod submit_quest;
+pub mod approve_submission;
+pub mod reject_submission;
+pub mod initialize_profile;
